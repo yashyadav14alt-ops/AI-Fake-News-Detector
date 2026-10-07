@@ -1,153 +1,66 @@
-from google import genai
-from dotenv import load_dotenv
+"""AI-assisted analysis of a user-provided news claim."""
+
 import os
+import sys
+
+from dotenv import load_dotenv
+from google import genai
 
 
-# --------------------------------
-# Load Environment Variables
-# --------------------------------
-load_dotenv()
-
-api_key = os.getenv("GEMINI_API_KEY")
-
-if not api_key:
-    print("❌ GEMINI_API_KEY not found in .env file")
-    exit()
-
-client = genai.Client(api_key=api_key)
+MODEL = "gemini-2.0-flash"
 
 
-# --------------------------------
-# Banner
-# --------------------------------
-def banner():
-
-    print("=" * 60)
-    print("🔍 AI Fake News Detector")
-    print("🚀 Made by cr1ms0ncode")
-    print("=" * 60)
-    print()
-
-
-# --------------------------------
-# User Input
-# --------------------------------
-def get_news():
-
-    print("Paste any news headline, message, article, or claim.")
-    print()
-
-    news = input("News Content:\n> ")
-
-    return news
-
-
-# --------------------------------
-# Build Prompt
-# --------------------------------
-def build_prompt(news):
-
-    return f"""
-You are an expert fact-checking assistant.
-
-Analyze the following claim carefully.
+def build_prompt(news: str) -> str:
+    return f"""You are an assistant analyzing a user-provided claim, not a source-verification system.
 
 CLAIM:
 {news}
 
-Rules:
-
-Do NOT assume the claim is true.
-
-If evidence is insufficient, say UNVERIFIED.
-
-Provide response in this format:
-
-VERDICT:
-(LIKELY TRUE / LIKELY FALSE / MISLEADING / UNVERIFIED)
-
-CONFIDENCE:
-(0-100%)
-
-WHY THIS VERDICT:
-(3 detailed reasons)
-
-RED FLAGS:
-(List suspicious signs if any)
-
-WHAT TO VERIFY:
-(What sources should be checked)
-
-USER ADVICE:
-(What the user should do next)
-
-Answer in simple Hinglish.
+Do not assume the claim is true. Clearly say when evidence is insufficient. Do not invent sources,
+citations, or verification. Give a tentative verdict, explain uncertainty, list what primary sources
+should be checked, and give practical advice. Answer in simple Hinglish.
 """
 
 
-# --------------------------------
-# Generate Analysis
-# --------------------------------
-def analyze_news(prompt):
+def analyze_news(news: str, client) -> str:
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=build_prompt(news),
+    )
+    result = response.text
+    if not result or not result.strip():
+        raise RuntimeError("The model returned an empty response.")
+    return result.strip()
+
+
+def save_report(report: str, path: str = "fact_check_report.txt") -> None:
+    with open(path, "w", encoding="utf-8") as report_file:
+        report_file.write(report + "\n")
+
+
+def main() -> int:
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key or api_key == "your_api_key_here":
+        print("GEMINI_API_KEY is missing. Copy .env.example to .env and add your key.", file=sys.stderr)
+        return 1
+
+    news = input("Paste a news headline, message, article, or claim:\n> ").strip()
+    if not news:
+        print("Please enter a claim to analyze.", file=sys.stderr)
+        return 1
 
     try:
+        report = analyze_news(news, genai.Client(api_key=api_key))
+    except Exception as error:
+        print(f"Analysis failed: {error}", file=sys.stderr)
+        return 1
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt
-        )
-
-        return response.text
-
-    except Exception as e:
-
-        return f"❌ Error: {e}"
-
-
-# --------------------------------
-# Save Report
-# --------------------------------
-def save_report(report):
-
-    with open(
-        "fact_check_report.txt",
-        "w",
-        encoding="utf-8"
-    ) as file:
-
-        file.write(report)
-
-    print()
-    print("✅ Report Saved")
-    print("📄 File: fact_check_report.txt")
-
-
-# --------------------------------
-# Main Program
-# --------------------------------
-def main():
-
-    banner()
-
-    news = get_news()
-
-    print()
-    print("🔍 Analyzing News...")
-    print()
-
-    prompt = build_prompt(news)
-
-    report = analyze_news(prompt)
-
-    print("=" * 60)
-    print(report)
-    print("=" * 60)
-
+    print("\n" + "=" * 60 + "\n" + report + "\n" + "=" * 60)
     save_report(report)
+    print("Report saved to fact_check_report.txt")
+    return 0
 
 
-# --------------------------------
-# Run App
-# --------------------------------
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
