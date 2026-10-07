@@ -1,0 +1,5 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+fact_check_report.txt
